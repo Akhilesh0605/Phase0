@@ -1,13 +1,19 @@
-import os
-from fastapi import FastAPI
+from fastapi import FastAPI,Depends
 from groq import Groq
 from dotenv import load_dotenv
-from fastapi import HTTPException
 from pydantic import BaseModel
+
+from sqlalchemy.orm import Session
+from database import engine,get_db
+from models import Base,QueryLog
+
+import os
 
 load_dotenv()
 
 GROQ_API=os.getenv("GROQ_API_KEY")
+
+Base.metadata.create_all(bind=engine) #to create table at start
 
 app=FastAPI()
 client=Groq(api_key=GROQ_API)
@@ -22,24 +28,28 @@ class AskQuestion(BaseModel):
     question:str
 
 
-@app.post('/ask')
-def ask(data:AskQuestion):
-    question=data.question
 
-    responce=client.chat.completions.create(
+
+@app.post('/ask')
+def ask(data: AskQuestion, db: Session = Depends(get_db)):
+    question = data.question
+
+    response = client.chat.completions.create(
         messages=[
-            {"role":"user","content":question}
+            {"role": "user", "content": question}
         ],
         model=model
     )
-    answer=responce.choices[0].message.content
+    answer = response.choices[0].message.content
 
-    history.append({
-        "question":question,
-        "answer":answer
-    })
-    return{"answer":answer}
+    log = QueryLog(question=question, response=answer)
+    db.add(log)
+    db.commit()
+
+    return {"answer": answer}
 
 @app.get('/history')
-def get_history():
-    return history
+def get_history(db:Session=Depends(get_db)):
+    logs=db.query(QueryLog).order_by(QueryLog.created_at.desc()).all()
+
+    return [{"question": l.question, "response": l.response, "time": l.created_at} for l in logs]
