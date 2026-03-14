@@ -5,8 +5,12 @@ from pydantic import BaseModel
 
 from sqlalchemy.orm import Session
 from database import engine,get_db
-from models import Base,QueryLog
+from models import Base,QueryLog,Users
+from uuid import UUID
 
+from components import UserOut
+
+import bcrypt
 import os
 
 load_dotenv()
@@ -53,3 +57,18 @@ def get_history(db:Session=Depends(get_db)):
     logs=db.query(QueryLog).order_by(QueryLog.created_at.desc()).all()
 
     return [{"question": l.question, "response": l.response, "time": l.created_at} for l in logs]
+
+@app.post("/register")
+def regester(username:str,password=str, db: Session=Depends(get_db)):
+    hashed=bcrypt.hashpw(password.encode(),bcrypt.gensalt())
+    user=Users(username=username,password=hashed)
+    db.add(user)
+    db.commit()
+
+    return f"User Regestered Succlessfully"
+
+
+@app.get("/users", response_model=list[UserOut])
+def get_user(db:Session=Depends(get_db)):
+    users=db.query(Users.id,Users.username).order_by(Users.username.asc()).all()
+    return users
