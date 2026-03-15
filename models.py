@@ -17,7 +17,7 @@ class QueryLog(Base):
 class Users(Base):
     __tablename__="users"
     id=Column(UUID(as_uuid=True),primary_key=True,server_default=text("gen_random_uuid()"))
-    email=Column(Text,unique=True, )
+    email=Column(Text,unique=True,nullable=False )
     username=Column(Text,nullable=False)
     password=Column(Text,nullable=False)
     created_at = Column(DateTime, default=datetime.utcnow)
